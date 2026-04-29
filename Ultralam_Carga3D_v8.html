@@ -795,8 +795,30 @@ function downloadUsersTemplate(){const csv='nombre,correo,area\nJuan Pérez,juan
 // ===== PRODUCT CATALOG MANAGEMENT =====
 let adminCatalog=[];
 const COLORS_PALETTE=['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#06B6D4','#84CC16','#F97316','#6366F1','#14B8A6','#E11D48','#A855F7','#0EA5E9','#D946EF','#22C55E','#FBBF24','#FB7185','#2DD4BF','#818CF8'];
-function loadAdminCatalog(){try{adminCatalog=JSON.parse(localStorage.getItem('ultralam_admin_catalog')||'[]');}catch(e){adminCatalog=[];}}
-function saveAdminCatalog(){try{localStorage.setItem('ultralam_admin_catalog',JSON.stringify(adminCatalog));}catch(e){}}
+function loadAdminCatalog(){try{adminCatalog=JSON.parse(localStorage.getItem('ultralam_admin_catalog')||'[]');}catch(e){adminCatalog=[];}syncCatalogFromServer();}
+function saveAdminCatalog(){try{localStorage.setItem('ultralam_admin_catalog',JSON.stringify(adminCatalog));}catch(e){}saveCatalogToServer();}
+async function syncCatalogFromServer(){
+  try{
+    const r=await fetch('/api/settings/simulator_catalog');
+    const d=await r.json();
+    if(d.ok && Array.isArray(d.value) && d.value.length){
+      const sJson=JSON.stringify(d.value);
+      if(sJson!==JSON.stringify(adminCatalog)){
+        adminCatalog=d.value;
+        try{localStorage.setItem('ultralam_admin_catalog',sJson);}catch(e){}
+        try{if(document.getElementById('prodTbody'))renderProductsTable();}catch(e){}
+        try{renderCatalogList();}catch(e){}
+      }
+    }
+  }catch(e){console.warn('[cat] sync failed:',e.message);}
+}
+function saveCatalogToServer(){
+  const tok=_portalToken();
+  if(!tok)return;
+  fetch('/api/settings/simulator_catalog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tok,value:adminCatalog})})
+    .then(r=>r.json()).then(d=>{if(!d.ok)console.warn('[cat] save server resp:',d.error);})
+    .catch(e=>console.warn('[cat] save failed:',e.message));
+}
 function renderProductsTable(){
   loadAdminCatalog();
   $('prodCount').textContent=adminCatalog.length+' productos';
