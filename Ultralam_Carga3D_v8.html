@@ -608,6 +608,9 @@ function applyBranding(){
 // let supabaseClient = null;
 // function initSupabase(){ supabaseClient = supabase.createClient(SYS_CONFIG.supabaseUrl, SYS_CONFIG.supabaseKey); }
 
+// ===== API BASE URL =====
+const API_BASE='https://hook-operational-metropolitan-trees.trycloudflare.com';
+
 // ===== AUTH STATE =====
 let currentUser=null; // {email, isAdmin, name}
 
@@ -799,7 +802,7 @@ function loadAdminCatalog(){try{adminCatalog=JSON.parse(localStorage.getItem('ul
 function saveAdminCatalog(){try{localStorage.setItem('ultralam_admin_catalog',JSON.stringify(adminCatalog));}catch(e){}saveCatalogToServer();}
 async function syncCatalogFromServer(){
   try{
-    const r=await fetch('/api/settings/simulator_catalog');
+    const r=await fetch(API_BASE+'/api/settings/simulator_catalog');
     const d=await r.json();
     if(d.ok && Array.isArray(d.value) && d.value.length){
       const sJson=JSON.stringify(d.value);
@@ -815,7 +818,7 @@ async function syncCatalogFromServer(){
 function saveCatalogToServer(){
   const tok=_portalToken();
   if(!tok)return;
-  fetch('/api/settings/simulator_catalog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tok,value:adminCatalog})})
+  fetch(API_BASE+'/api/settings/simulator_catalog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tok,value:adminCatalog})})
     .then(r=>r.json()).then(d=>{if(!d.ok)console.warn('[cat] save server resp:',d.error);})
     .catch(e=>console.warn('[cat] save failed:',e.message));
 }
@@ -970,7 +973,7 @@ function loadVehicles(){
 }
 async function syncVehiclesFromServer(){
   try{
-    const r=await fetch('/api/settings/simulator_vehicles');
+    const r=await fetch(API_BASE+'/api/settings/simulator_vehicles');
     const d=await r.json();
     if(d.ok && Array.isArray(d.value) && d.value.length){
       const sJson=JSON.stringify(d.value);
@@ -990,7 +993,7 @@ function saveVehicles(){
   // Persistir en el servidor de forma asíncrona (sin bloquear UI)
   const tok=_portalToken();
   if(!tok)return;
-  fetch('/api/settings/simulator_vehicles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tok,value:PR})})
+  fetch(API_BASE+'/api/settings/simulator_vehicles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tok,value:PR})})
     .then(r=>r.json()).then(d=>{if(!d.ok)console.warn('[veh] save server resp:',d.error);})
     .catch(e=>console.warn('[veh] save failed:',e.message));
 }
