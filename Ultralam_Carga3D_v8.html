@@ -7,8 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<!-- TODO: SUPABASE — descomentar cuando se tengan las credenciales -->
-<!-- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script> -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ===== THEME TOKENS ===== */
@@ -31,7 +30,19 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 ::selection{background:var(--ac2);color:var(--ac)}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--tx3)}
 
-/* ===== AUTH SCREEN (removed) ===== */
+/* ===== AUTH SCREEN ===== */
+#authScreen{position:fixed;inset:0;background:var(--bg);z-index:9000;display:flex;align-items:center;justify-content:center;}
+.auth-card{background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:36px;width:380px;box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:16px}
+.auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.auth-title{font-size:18px;font-weight:700;letter-spacing:-.02em}
+.auth-subtitle{font-size:11px;color:var(--tx3)}
+.auth-field{display:flex;flex-direction:column;gap:5px}
+.auth-field label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--tx3)}
+.auth-field input{background:var(--bg);border:1px solid var(--bd);border-radius:8px;color:var(--tx);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;padding:10px 14px;outline:none;transition:border-color .15s;width:100%}
+.auth-field input:focus{border-color:var(--ac)}
+.auth-msg{font-size:11px;min-height:16px;padding:2px 0}
+.auth-msg.err{color:var(--r)}.auth-msg.ok{color:var(--g)}.auth-msg.info{color:var(--ac)}
+.auth-otp-input{font-family:'JetBrains Mono',monospace;font-size:22px;letter-spacing:8px;text-align:center}
 
 /* ===== ADMIN OVERLAY ===== */
 #adminPanel{position:fixed;inset:0;background:var(--bg);z-index:8000;display:none;flex-direction:column}
@@ -227,6 +238,37 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 
 
 
+<!-- ===== AUTH SCREEN ===== -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <img id="authLogoImg" src="" alt="" style="width:32px;height:32px;object-fit:contain;border-radius:6px;display:none">
+      <div class="auth-title"><span id="authLogoName"><b>ULTRALAM</b></span></div>
+    </div>
+    <!-- STEP 1: email -->
+    <div id="authStep1">
+      <div class="auth-subtitle">Ingresa tu correo para recibir un código de acceso</div>
+      <div class="auth-field" style="margin-top:8px">
+        <label>Correo electrónico</label>
+        <input type="email" id="authEmail" placeholder="tu@correo.com" onkeydown="if(event.key==='Enter')sendOTP()">
+      </div>
+      <div class="auth-msg" id="authMsg"></div>
+      <button class="btn btn-primary btn-full" id="sendOtpBtn" onclick="sendOTP()">Enviar código</button>
+    </div>
+    <!-- STEP 2: OTP -->
+    <div id="authStep2" style="display:none">
+      <div class="auth-subtitle" id="authStep2Desc">Ingresa el código de 6 dígitos enviado a tu correo</div>
+      <div class="auth-field" style="margin-top:8px">
+        <label>Código de verificación</label>
+        <input type="text" id="authOTP" class="auth-otp-input" maxlength="6" placeholder="000000" oninput="this.value=this.value.replace(/\D/g,'')" onkeydown="if(event.key==='Enter')verifyOTP()">
+      </div>
+      <div class="auth-msg" id="authMsg2"></div>
+      <button class="btn btn-primary btn-full" id="verifyOtpBtn" onclick="verifyOTP()">Verificar e ingresar</button>
+      <button class="btn btn-ghost btn-full" style="margin-top:6px;font-size:10px" onclick="backToEmail()">&#8592; Cambiar correo</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== ADMIN PANEL ===== -->
 <div id="adminPanel">
   <div class="admin-hdr">
@@ -345,18 +387,6 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
               </div>
             </div>
           </div>
-          <div class="config-row">
-            <label>Email del administrador</label>
-            <input type="email" id="cfgAdminEmail" placeholder="sistemas@ultralam.com.mx" value="sistemas@ultralam.com.mx">
-          </div>
-          <div class="config-row">
-            <label>Supabase URL</label>
-            <input type="text" id="cfgAdminUrl" placeholder="https://xxxx.supabase.co">
-          </div>
-          <div class="config-row">
-            <label>Supabase Anon Key</label>
-            <input type="text" id="cfgAdminKey" placeholder="eyJ...">
-          </div>
           <button class="btn btn-primary" onclick="saveSystemConfig()" style="max-width:200px">Guardar configuraci&#243;n</button>
           <div id="configSavedMsg" style="font-size:11px;color:var(--g);display:none">&#10003; Guardado correctamente</div>
         </div>
@@ -379,7 +409,7 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 </div>
 
 <!-- ===== MAIN APP ===== -->
-<div class="app" id="mainApp">
+<div class="app" id="mainApp" style="display:none">
 <!-- HEADER -->
 <div class="hdr">
   <div class="hdr-left">
@@ -399,7 +429,7 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
       <div class="uc-avatar" id="appAvatar">U</div>
       <span id="appUserLabel">Usuario</span>
     </div>
-    <button class="btn btn-ghost" style="font-size:9px;padding:3px 8px" onclick="goToPortal()">&#8592; Portal</button>
+    <button class="btn btn-ghost" style="font-size:9px;padding:3px 8px" onclick="signOut()">&#10148; Salir</button>
   </div>
 </div>
 
@@ -569,21 +599,24 @@ const $=id=>{const e=document.getElementById(id);if(!e)console.warn('Missing #'+
 // ===== SYSTEM CONFIG =====
 let SYS_CONFIG={
   name:'Ultralam — Carga 3D',
-  logo:'',
-  adminEmail:'sistemas@ultralam.com.mx',
-  supabaseUrl:'',
-  supabaseKey:''
+  logo:''
 };
 
 function loadSysConfig(){
-  try{const s=localStorage.getItem('ultralam_sys_config');if(s){const c=JSON.parse(s);Object.assign(SYS_CONFIG,c);}
-  // Back-compat: old supabase config
-  const ou=localStorage.getItem('ultralam_sb_url'),ok=localStorage.getItem('ultralam_sb_key');
-  if(ou&&!SYS_CONFIG.supabaseUrl)SYS_CONFIG.supabaseUrl=ou;
-  if(ok&&!SYS_CONFIG.supabaseKey)SYS_CONFIG.supabaseKey=ok;
-  }catch(e){}
+  try{const s=localStorage.getItem('ultralam_sys_config');if(s){const c=JSON.parse(s);Object.assign(SYS_CONFIG,c);}}catch(e){}
+  syncSysConfigFromServer();
 }
-function saveSysConfig(){try{localStorage.setItem('ultralam_sys_config',JSON.stringify(SYS_CONFIG));}catch(e){}}
+function saveSysConfig(){
+  try{localStorage.setItem('ultralam_sys_config',JSON.stringify(SYS_CONFIG));}catch(e){}
+  sb.from('simulator_settings').upsert({key:'simulator_config',value:SYS_CONFIG,updated_at:new Date().toISOString()})
+    .then(({error})=>{if(error)console.warn('[cfg] save failed:',error.message);});
+}
+async function syncSysConfigFromServer(){
+  try{
+    const{data}=await sb.from('simulator_settings').select('value').eq('key','simulator_config').single();
+    if(data?.value){Object.assign(SYS_CONFIG,data.value);try{localStorage.setItem('ultralam_sys_config',JSON.stringify(SYS_CONFIG));}catch(e){}applyBranding();}
+  }catch(e){console.warn('[cfg] sync failed:',e.message);}
+}
 
 function applyBranding(){
   const n=SYS_CONFIG.name||'Ultralam — Carga 3D';
@@ -604,49 +637,65 @@ function applyBranding(){
 }
 
 // ===== SUPABASE =====
-// TODO: SUPABASE — declarar supabaseClient e initSupabase() aquí
-// let supabaseClient = null;
-// function initSupabase(){ supabaseClient = supabase.createClient(SYS_CONFIG.supabaseUrl, SYS_CONFIG.supabaseKey); }
-
-// ===== API BASE URL =====
-const API_BASE='https://hook-operational-metropolitan-trees.trycloudflare.com';
+const SUPABASE_URL='https://prdgtlbcbaluqnjydnmw.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_kYenWPtUaXDsAc9oA9MlZA_GJvAGKao';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
 // ===== AUTH STATE =====
-let currentUser=null; // {email, isAdmin, name}
-
-function toggleConfig(){$('configPanel').style.display=$('configPanel').style.display==='none'?'':'none';}
-
-// TODO: SUPABASE — saveSupabaseConfig() va aquí al integrar credenciales
+let currentUser=null; // {id, email, isAdmin, name}
 
 function showAuthMsg(id,msg,type){const el=$(id);el.textContent=msg;el.className='auth-msg '+type;}
-function clearAuthMsg(id){const el=$(id);el.textContent='';el.className='auth-msg';}
 
-// Acceso temporal sin OTP — reemplazar con Supabase Auth al configurar credenciales
-// TODO: SUPABASE — sendOTP() debe llamar a supabaseClient.auth.signInWithOtp({email})
-function sendOTP(){
+async function sendOTP(){
   const email=$('authEmail').value.trim().toLowerCase();
   if(!email||!email.includes('@')){showAuthMsg('authMsg','Ingresa un correo válido.','err');return;}
   $('sendOtpBtn').disabled=true;
-  // TODO: SUPABASE — aquí va la llamada al API OTP; por ahora acceso directo
-  loginSuccess(email);
-  $('sendOtpBtn').disabled=false;
+  showAuthMsg('authMsg','Enviando código...','info');
+  const{error}=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:true}});
+  if(error){showAuthMsg('authMsg',error.message,'err');$('sendOtpBtn').disabled=false;return;}
+  showAuthMsg('authMsg','Código enviado a '+email,'ok');
+  $('authStep2Desc').textContent='Código enviado a '+email+'. Revisa tu bandeja.';
+  $('authStep1').style.display='none';
+  $('authStep2').style.display='';
+  $('authOTP').focus();
 }
 
-// TODO: SUPABASE — verifyOTP(), otpDigit(), otpBack(), backToEmail() van aquí al integrar
+async function verifyOTP(){
+  const email=$('authEmail').value.trim().toLowerCase();
+  const token=$('authOTP').value.trim();
+  if(token.length<6){showAuthMsg('authMsg2','Ingresa los 6 dígitos.','err');return;}
+  $('verifyOtpBtn').disabled=true;
+  showAuthMsg('authMsg2','Verificando...','info');
+  const{data,error}=await sb.auth.verifyOtp({email,token,type:'email'});
+  if(error){showAuthMsg('authMsg2','Código incorrecto o expirado.','err');$('verifyOtpBtn').disabled=false;return;}
+}
 
-function loginSuccess(email){
-  const isAdmin=email.toLowerCase()===SYS_CONFIG.adminEmail.toLowerCase();
-  currentUser={email,isAdmin,name:email.split('@')[0]};
-  // Restore saved name
-  try{const n=localStorage.getItem('ultralam_user_name_'+email);if(n)currentUser.name=n;}catch(e){}
-  // Log access
-  appendLog({type:'login',email,ts:new Date().toISOString()});
+function backToEmail(){
+  $('authStep1').style.display='';$('authStep2').style.display='none';
+  showAuthMsg('authMsg','','');$('sendOtpBtn').disabled=false;$('authOTP').value='';
+}
+
+async function onUserLogin(user){
+  const{data:profile}=await sb.from('profiles').select('*').eq('id',user.id).single();
+  const role=profile?.role||'user';
+  const nombre=profile?.nombre||user.email.split('@')[0];
+  currentUser={id:user.id,email:user.email,isAdmin:role==='admin',name:nombre};
+  try{const n=localStorage.getItem('ultralam_user_name_'+user.email);if(n)currentUser.name=n;}catch(e){}
+  appendLog({type:'login',email:user.email,ts:new Date().toISOString()});
   $('authScreen').style.display='none';
-  if(isAdmin){showAdminPanel();}else{showMainApp();}
+  if(currentUser.isAdmin){showAdminPanel();}else{showMainApp();}
 }
 
-function signOut(){ goToPortal(); }
-function goToPortal(){ window.location.href='/'; }
+async function signOut(){
+  await sb.auth.signOut();
+  currentUser=null;
+  $('adminPanel').style.display='none';
+  $('mainApp').style.display='none';
+  $('authScreen').style.display='flex';
+  $('authStep1').style.display='';$('authStep2').style.display='none';
+  $('authOTP').value='';showAuthMsg('authMsg','','');$('sendOtpBtn').disabled=false;
+}
+function goToPortal(){window.location.href='/';}
 
 // ===== LOG =====
 function appendLog(entry){
@@ -762,65 +811,56 @@ function downloadVehiclesTemplate(){
 }
 function resetVehicles(){if(confirm('¿Restaurar vehículos predeterminados? Se perderán los cambios.')){PR=DEFAULT_PR.slice();saveVehicles();renderVehiclesTable();try{renderPR();}catch(e){}}}
 
-// ===== USER MANAGEMENT =====
+// ===== USER MANAGEMENT (Supabase profiles) =====
 let adminUsers=[];
-function loadAdminUsers(){try{adminUsers=JSON.parse(localStorage.getItem('ultralam_admin_users')||'[]');}catch(e){adminUsers=[];}}
-function saveAdminUsers(){try{localStorage.setItem('ultralam_admin_users',JSON.stringify(adminUsers));}catch(e){}}
-function renderUsersTable(){
-  loadAdminUsers();
+function loadAdminUsers(){}
+async function renderUsersTable(){
+  const{data,error}=await sb.from('profiles').select('*').order('created_at');
+  adminUsers=data||[];
   $('userCount').textContent=adminUsers.length+' usuarios';
-  $('usersTbody').innerHTML=adminUsers.length?adminUsers.map((u,i)=>`<tr><td style="color:var(--tx3)">${i+1}</td><td><b>${u.nombre}</b></td><td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx2)">${u.correo||'—'}</td><td style="color:var(--tx2)">${u.area||'—'}</td><td><button class="btn-danger" onclick="deleteUser(${i})">&#10005;</button></td></tr>`).join(''):'<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--tx3)">Sin usuarios. Importa un CSV.</td></tr>';
+  $('usersTbody').innerHTML=adminUsers.length?adminUsers.map((u,i)=>`<tr>
+    <td style="color:var(--tx3)">${i+1}</td>
+    <td><b>${u.nombre||'—'}</b></td>
+    <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--tx2)">${u.email||'—'}</td>
+    <td>
+      <select onchange="setUserRole('${u.id}',this.value)" style="background:var(--sf);border:1px solid var(--bd);border-radius:4px;color:var(--tx);padding:2px 6px;font-size:10px">
+        <option value="user" ${u.role==='user'?'selected':''}>Usuario</option>
+        <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+      </select>
+    </td>
+    <td><span style="font-size:9px;color:var(--tx3)">${u.created_at?new Date(u.created_at).toLocaleDateString('es-MX'):''}</span></td>
+  </tr>`).join(''):'<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--tx3)">Sin usuarios registrados aún.</td></tr>';
 }
-function deleteUser(i){adminUsers.splice(i,1);saveAdminUsers();renderUsersTable();}
-function addUserManual(){
-  const nombre=prompt('Nombre del usuario:');if(!nombre)return;
-  const correo=prompt('Correo (opcional):');
-  const area=prompt('Área (opcional):');
-  adminUsers.push({nombre,correo:correo||'',area:area||''});
-  saveAdminUsers();renderUsersTable();
+async function setUserRole(id,role){
+  const{error}=await sb.from('profiles').update({role}).eq('id',id);
+  if(error)alert('Error: '+error.message);else renderUsersTable();
 }
-function importUsersCSV(e){
-  const file=e.target.files[0];if(!file)return;
-  readSpreadsheet(file,function(rows){
-    if(rows.length<2)return;
-    const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-    const iN=hdr.findIndex(h=>h.includes('nombre')||h==='name');
-    const iC=hdr.findIndex(h=>h.includes('correo')||h.includes('email'));
-    const iA=hdr.findIndex(h=>h.includes('area')||h.includes('dpto'));
-    let count=0;
-    for(let i=1;i<rows.length;i++){const r=rows[i];const nombre=iN>=0?r[iN]:r[0];if(!nombre)continue;adminUsers.push({nombre,correo:iC>=0?r[iC]:'',area:iA>=0?r[iA]:''});count++;}
-    saveAdminUsers();renderUsersTable();alert(count+' usuarios importados.');
-  });
-  e.target.value='';
-}
-function downloadUsersTemplate(){const csv='nombre,correo,area\nJuan Pérez,juan@empresa.com,Ventas\nMaría García,,Operaciones\n';const b=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='plantilla_usuarios.csv';a.click();}
+function addUserManual(){alert('Los usuarios se registran solos al ingresar con OTP por primera vez.');}
+function importUsersCSV(){}
+function downloadUsersTemplate(){const csv='email,nombre,role\njuan@empresa.com,Juan Pérez,user\nadmin@empresa.com,Admin,admin\n';const b=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='plantilla_usuarios.csv';a.click();}
 
 // ===== PRODUCT CATALOG MANAGEMENT =====
 let adminCatalog=[];
 const COLORS_PALETTE=['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#06B6D4','#84CC16','#F97316','#6366F1','#14B8A6','#E11D48','#A855F7','#0EA5E9','#D946EF','#22C55E','#FBBF24','#FB7185','#2DD4BF','#818CF8'];
 function loadAdminCatalog(){try{adminCatalog=JSON.parse(localStorage.getItem('ultralam_admin_catalog')||'[]');}catch(e){adminCatalog=[];}syncCatalogFromServer();}
-function saveAdminCatalog(){try{localStorage.setItem('ultralam_admin_catalog',JSON.stringify(adminCatalog));}catch(e){}saveCatalogToServer();}
+function saveAdminCatalog(){
+  try{localStorage.setItem('ultralam_admin_catalog',JSON.stringify(adminCatalog));}catch(e){}
+  sb.from('simulator_settings').upsert({key:'simulator_catalog',value:adminCatalog,updated_at:new Date().toISOString()})
+    .then(({error})=>{if(error)console.warn('[cat] save failed:',error.message);});
+}
 async function syncCatalogFromServer(){
   try{
-    const r=await fetch(API_BASE+'/api/settings/simulator_catalog');
-    const d=await r.json();
-    if(d.ok && Array.isArray(d.value) && d.value.length){
-      const sJson=JSON.stringify(d.value);
+    const{data}=await sb.from('simulator_settings').select('value').eq('key','simulator_catalog').single();
+    if(data?.value&&Array.isArray(data.value)&&data.value.length){
+      const sJson=JSON.stringify(data.value);
       if(sJson!==JSON.stringify(adminCatalog)){
-        adminCatalog=d.value;
+        adminCatalog=data.value;
         try{localStorage.setItem('ultralam_admin_catalog',sJson);}catch(e){}
         try{if(document.getElementById('prodTbody'))renderProductsTable();}catch(e){}
         try{renderCatalogList();}catch(e){}
       }
     }
   }catch(e){console.warn('[cat] sync failed:',e.message);}
-}
-function saveCatalogToServer(){
-  const tok=_portalToken();
-  if(!tok)return;
-  fetch(API_BASE+'/api/settings/simulator_catalog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tok,value:adminCatalog})})
-    .then(r=>r.json()).then(d=>{if(!d.ok)console.warn('[cat] save server resp:',d.error);})
-    .catch(e=>console.warn('[cat] save failed:',e.message));
 }
 function renderProductsTable(){
   loadAdminCatalog();
@@ -871,11 +911,7 @@ function loadLogoFile(e){
 function saveSystemConfig(){
   SYS_CONFIG.name=$('cfgSysName').value.trim()||'Ultralam — Carga 3D';
   SYS_CONFIG.logo=$('cfgLogoUrl').value.trim();
-  SYS_CONFIG.adminEmail=$('cfgAdminEmail').value.trim()||'sistemas@ultralam.com.mx';
-  SYS_CONFIG.supabaseUrl=$('cfgAdminUrl').value.trim();
-  SYS_CONFIG.supabaseKey=$('cfgAdminKey').value.trim();
   saveSysConfig();
-  // TODO: SUPABASE — initSupabase() aquí al integrar credenciales
   applyBranding();
   const m=$('configSavedMsg');m.style.display='';setTimeout(()=>{m.style.display='none';},2500);
 }
@@ -962,25 +998,19 @@ const DEFAULT_PR=[
   {k:'cam35',n:'Camioneta 3.5t',l:400,w:200,h:180,p:3500},
 ];
 let PR=[];
-// Vehículos persistentes en SERVIDOR (compartidos entre todos los usuarios) con respaldo en localStorage
-function _portalToken(){try{const s=JSON.parse(localStorage.getItem('portal_session')||'null');return s?.token||'';}catch(e){return '';}}
-// Carga SÍNCRONA inmediata desde localStorage (para no romper código que asume PR poblado)
 function loadVehicles(){
   try{const s=localStorage.getItem('ultralam_vehicles');PR=s?JSON.parse(s):DEFAULT_PR.slice();}catch(e){PR=DEFAULT_PR.slice();}
-  if(!PR.length) PR=DEFAULT_PR.slice();
-  // Disparar refresh asíncrono desde el servidor (compartido entre usuarios)
+  if(!PR.length)PR=DEFAULT_PR.slice();
   syncVehiclesFromServer();
 }
 async function syncVehiclesFromServer(){
   try{
-    const r=await fetch(API_BASE+'/api/settings/simulator_vehicles');
-    const d=await r.json();
-    if(d.ok && Array.isArray(d.value) && d.value.length){
-      const sJson=JSON.stringify(d.value);
+    const{data}=await sb.from('simulator_settings').select('value').eq('key','simulator_vehicles').single();
+    if(data?.value&&Array.isArray(data.value)&&data.value.length){
+      const sJson=JSON.stringify(data.value);
       if(sJson!==JSON.stringify(PR)){
-        PR=d.value;
+        PR=data.value;
         try{localStorage.setItem('ultralam_vehicles',sJson);}catch(e){}
-        // Re-renderizar lo que esté visible
         try{renderPR();}catch(e){}
         try{if(document.getElementById('vehTbody'))renderVehiclesTable();}catch(e){}
       }
@@ -988,14 +1018,9 @@ async function syncVehiclesFromServer(){
   }catch(e){console.warn('[veh] sync failed:',e.message);}
 }
 function saveVehicles(){
-  // Guardar en localStorage (instantáneo)
   try{localStorage.setItem('ultralam_vehicles',JSON.stringify(PR));}catch(e){}
-  // Persistir en el servidor de forma asíncrona (sin bloquear UI)
-  const tok=_portalToken();
-  if(!tok)return;
-  fetch(API_BASE+'/api/settings/simulator_vehicles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tok,value:PR})})
-    .then(r=>r.json()).then(d=>{if(!d.ok)console.warn('[veh] save server resp:',d.error);})
-    .catch(e=>console.warn('[veh] save failed:',e.message));
+  sb.from('simulator_settings').upsert({key:'simulator_vehicles',value:PR,updated_at:new Date().toISOString()})
+    .then(({error})=>{if(error)console.warn('[veh] save failed:',error.message);});
 }
 loadVehicles();
 function renderPR(){$('pgrid').innerHTML=PR.map(p=>`<div class="preset ${p.k===lastPK?'active':''}" onclick="selPR('${p.k}')"><div class="p-name">${p.n}</div><div class="p-dims">${p.l}&times;${p.w}&times;${p.h}</div><div class="p-cap">Max ${p.p.toLocaleString()} kg</div></div>`).join('')+`<div class="preset ${lastPK==='custom'?'active':''}" onclick="selPR('custom')"><div class="p-name">Personalizado</div><div class="p-dims">Tus medidas</div><div class="p-cap">&mdash;</div></div>`;}
@@ -1256,26 +1281,29 @@ function setupAdminDragDrop(){
 // ===== INIT =====
 loadSysConfig();
 applyBranding();
-
-// Leer sesión del Portal (mismo origen, comparte localStorage)
-(function(){
-  try {
-    const s = JSON.parse(localStorage.getItem('portal_session') || 'null');
-    const u = s && s.user ? s.user : null;
-    const email  = u ? u.email  : 'invitado@ultralam.com.mx';
-    const nombre = u ? (u.nombre || email.split('@')[0]) : 'Invitado';
-    const isAdmin = u ? (u.roles || []).includes('ADMIN') : false;
-    currentUser = { email, isAdmin, name: nombre };
-    // Restore custom saved name
-    try { const n = localStorage.getItem('ultralam_user_name_' + email); if(n) currentUser.name = n; } catch(e) {}
-  } catch(e) {
-    currentUser = { email:'invitado@ultralam.com.mx', isAdmin:false, name:'Invitado' };
-  }
-})();
-
 initThree();
 setupAdminDragDrop();
-if (currentUser.isAdmin) { showAdminPanel(); } else { showMainApp(); }
+
+// Supabase auth — escucha cambios de sesión
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    await onUserLogin(session.user);
+  } else {
+    currentUser = null;
+    $('adminPanel').style.display = 'none';
+    $('mainApp').style.display = 'none';
+    $('authScreen').style.display = 'flex';
+  }
+});
+
+// Verificar sesión existente al cargar
+sb.auth.getSession().then(({data:{session}}) => {
+  if (!session) {
+    $('authScreen').style.display = 'flex';
+    $('adminPanel').style.display = 'none';
+    $('mainApp').style.display = 'none';
+  }
+});
 </script>
 </body>
 </html>
