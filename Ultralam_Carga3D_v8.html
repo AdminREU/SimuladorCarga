@@ -666,8 +666,11 @@ async function verifyOTP(){
   if(token.length<6){showAuthMsg('authMsg2','Ingresa los 6 dígitos.','err');return;}
   $('verifyOtpBtn').disabled=true;
   showAuthMsg('authMsg2','Verificando...','info');
-  const{data,error}=await sb.auth.verifyOtp({email,token,type:'email'});
-  if(error){showAuthMsg('authMsg2','Código incorrecto o expirado.','err');$('verifyOtpBtn').disabled=false;return;}
+  // Intentar como usuario existente, luego como nuevo registro
+  let result=await sb.auth.verifyOtp({email,token,type:'email'});
+  if(result.error)result=await sb.auth.verifyOtp({email,token,type:'signup'});
+  if(result.error)result=await sb.auth.verifyOtp({email,token,type:'magiclink'});
+  if(result.error){showAuthMsg('authMsg2','Código incorrecto o expirado.','err');$('verifyOtpBtn').disabled=false;return;}
 }
 
 function backToEmail(){
