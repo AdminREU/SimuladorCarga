@@ -220,21 +220,49 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 /* ===== PRINT ===== */
 /* ===== MOBILE / RESPONSIVE ===== */
 @media (max-width:900px){
-  .app{grid-template-columns:1fr;grid-template-rows:48px auto 60vh auto}
-  .sL,.sR{border:none;border-bottom:1px solid var(--bd);max-height:none}
-  .sR{border-top:1px solid var(--bd)}
-  .vp{min-height:55vh}
-  .hdr{flex-wrap:wrap;height:auto;padding:6px 10px;gap:6px}
-  .hdr-metrics{order:3;flex-basis:100%;font-size:10px;justify-content:space-around}
-  .hdr-right{margin-left:auto}
-  .auth-card{width:90%;max-width:380px;padding:24px}
+  body{font-size:12px}
+  .app{display:flex;flex-direction:column;height:auto;min-height:100vh}
+  .hdr{flex-wrap:wrap;height:auto;padding:6px 8px;gap:4px;position:sticky;top:0;z-index:50}
+  .hdr-left{flex:1;min-width:0}
+  .hdr-metrics{order:3;flex-basis:100%;font-size:9px;justify-content:space-between;gap:4px;padding:4px 0;border-top:1px solid var(--bd)}
+  .hm{font-size:9px;gap:3px}
+  .hm b{font-size:10px}
+  .hdr-right{display:flex;align-items:center;gap:4px}
+  .hdr-right .btn{padding:3px 6px;font-size:9px}
+  .user-chip{padding:2px 6px 2px 4px;font-size:10px}
+  .user-chip .uc-avatar{width:18px;height:18px;font-size:8px}
+  .vp{height:42vh;min-height:280px;order:1;flex-shrink:0}
+  .sL{order:2;border:none;border-bottom:1px solid var(--bd);padding:10px;gap:10px;max-height:none}
+  .sR{order:3;border:none;border-top:1px solid var(--bd);padding:10px;gap:10px;max-height:none}
+  .presets{grid-template-columns:1fr 1fr 1fr;gap:3px}
+  .preset .p-name{font-size:9px}
+  .preset .p-dims{font-size:8px}
+  .preset .p-cap{font-size:7px}
+  .card{padding:8px}
+  .field input,.field select{font-size:10px;padding:5px 6px}
+  .row.c4{grid-template-columns:1fr 1fr}
+  .vp-bottom{flex-wrap:wrap;gap:3px}
+  .stat-chip{padding:3px 7px}
+  .stat-chip .s-label{font-size:7px}
+  .stat-chip .s-value{font-size:10px}
+  .vp-top-left .btn,.vp-top-right{font-size:8px;padding:2px 5px}
+  .auth-card{width:92%;max-width:380px;padding:24px 20px}
   #adminPanel .admin-body{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   #adminPanel .admin-nav{flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--bd);padding:8px;gap:6px}
   #adminPanel .admin-nav-item{white-space:nowrap;flex-shrink:0;font-size:11px}
-  #adminPanel .admin-content{padding:14px}
-  #adminPanel .admin-table{font-size:10px}
+  #adminPanel .admin-content{padding:12px;overflow-x:auto}
+  #adminPanel .admin-table{font-size:10px;min-width:480px}
   #adminPanel .admin-toolbar{flex-direction:column;align-items:stretch}
   #adminPanel .admin-toolbar .btn{width:100%;justify-content:center}
+  #adminPanel .admin-hdr{flex-wrap:wrap;height:auto;padding:8px 10px;gap:6px}
+  #adminPanel .admin-hdr-actions{margin-left:auto;gap:4px}
+  .modal-card{width:92%;max-width:400px;padding:18px}
+  #pList{max-height:30vh}
+  #catalogList{max-height:25vh}
+}
+@media (max-width:480px){
+  .vp{height:38vh;min-height:240px}
+  .presets{grid-template-columns:1fr 1fr}
 }
 @media print{
   body{overflow:visible!important;height:auto!important;background:#fff!important;color:#000!important}
@@ -708,11 +736,20 @@ async function verifyOTP(){
   if(token.length<6){showAuthMsg('authMsg2','Ingresa el código completo.','err');return;}
   $('verifyOtpBtn').disabled=true;
   showAuthMsg('authMsg2','Verificando...','info');
-  // Intentar como usuario existente, luego como nuevo registro
   let result=await sb.auth.verifyOtp({email,token,type:'email'});
   if(result.error)result=await sb.auth.verifyOtp({email,token,type:'signup'});
   if(result.error)result=await sb.auth.verifyOtp({email,token,type:'magiclink'});
-  if(result.error){showAuthMsg('authMsg2','Código incorrecto o expirado.','err');$('verifyOtpBtn').disabled=false;return;}
+  if(result.error){
+    showAuthMsg('authMsg2','Código incorrecto o expirado.','err');
+    $('verifyOtpBtn').disabled=false;
+    return;
+  }
+  // Éxito: forzar el flujo de login si onAuthStateChange no dispara
+  showAuthMsg('authMsg2','✓ Acceso concedido','ok');
+  if(result.data&&result.data.user){
+    await onUserLogin(result.data.user);
+  }
+  $('verifyOtpBtn').disabled=false;
 }
 
 function backToEmail(){
@@ -720,25 +757,33 @@ function backToEmail(){
   showAuthMsg('authMsg','','');$('sendOtpBtn').disabled=false;$('authOTP').value='';
 }
 
+const SUPER_ADMIN='sistemas@ultralam.com.mx';
+let _loginInProgress=false;
 async function onUserLogin(user){
-  const{data:profile}=await sb.from('profiles').select('*').eq('id',user.id).single();
-  const role=profile?.role||'user';
-  const nombre=profile?.nombre||user.email.split('@')[0];
-  currentUser={id:user.id,email:user.email,isAdmin:role==='admin',name:nombre};
-  try{const n=localStorage.getItem('ultralam_user_name_'+user.email);if(n)currentUser.name=n;}catch(e){}
-  appendLog({type:'login',email:user.email,ts:new Date().toISOString()});
-  $('authScreen').style.display='none';
-  if(currentUser.isAdmin){showAdminPanel();}else{showMainApp();}
+  if(_loginInProgress)return;
+  _loginInProgress=true;
+  try{
+    const emailLower=(user.email||'').toLowerCase();
+    const isSuper=emailLower===SUPER_ADMIN;
+    let{data:profile}=await sb.from('profiles').select('*').eq('id',user.id).maybeSingle();
+    if(isSuper&&(!profile||profile.role!=='admin')){
+      await sb.from('profiles').upsert({id:user.id,email:user.email,role:'admin'});
+      profile={...(profile||{}),role:'admin'};
+    }
+    const role=profile?.role||'user';
+    const nombre=profile?.nombre||(user.email||'').split('@')[0];
+    currentUser={id:user.id,email:user.email,isAdmin:role==='admin'||isSuper,name:nombre};
+    try{const n=localStorage.getItem('ultralam_user_name_'+user.email);if(n)currentUser.name=n;}catch(e){}
+    appendLog({type:'login',email:user.email,ts:new Date().toISOString()});
+    $('authScreen').style.display='none';
+    if(currentUser.isAdmin){showAdminPanel();}else{showMainApp();}
+  }finally{_loginInProgress=false;}
 }
 
 async function signOut(){
-  await sb.auth.signOut();
-  currentUser=null;
-  $('adminPanel').style.display='none';
-  $('mainApp').style.display='none';
-  $('authScreen').style.display='flex';
-  $('authStep1').style.display='';$('authStep2').style.display='none';
-  $('authOTP').value='';showAuthMsg('authMsg','','');$('sendOtpBtn').disabled=false;
+  try{await sb.auth.signOut();}catch(e){}
+  try{Object.keys(localStorage).filter(k=>k.startsWith('sb-')).forEach(k=>localStorage.removeItem(k));}catch(e){}
+  window.location.reload();
 }
 function goToPortal(){window.location.href='/';}
 
