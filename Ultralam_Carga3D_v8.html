@@ -494,6 +494,7 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
       <div class="uc-avatar" id="appAvatar">U</div>
       <span id="appUserLabel">Usuario</span>
     </div>
+    <button class="btn btn-ghost" style="font-size:9px;padding:3px 8px" onclick="syncAllFromServer()" title="Actualizar desde servidor">&#8635;</button>
     <button class="btn btn-ghost" id="adminBtnInApp" style="font-size:9px;padding:3px 8px;display:none" onclick="showAdminPanel()">&#128272; Admin</button>
     <button class="btn btn-ghost" style="font-size:9px;padding:3px 8px" onclick="signOut()">&#10148; Salir</button>
   </div>
@@ -715,6 +716,18 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 let currentUser=null; // {id, email, isAdmin, name}
 
 function showAuthMsg(id,msg,type){const el=$(id);el.textContent=msg;el.className='auth-msg '+type;}
+
+async function syncAllFromServer(){
+  showSaveOk('Sincronizando...');
+  await Promise.all([syncSysConfigFromServer(),syncVehiclesFromServer(),syncCatalogFromServer()]);
+  try{renderPR();renderCatalogList();}catch(e){}
+  showSaveOk('Datos actualizados');
+}
+
+// ===== TOAST DE GUARDADO =====
+function _ensureToast(){let t=document.getElementById('saveToast');if(!t){t=document.createElement('div');t.id='saveToast';t.style.cssText='position:fixed;bottom:18px;right:18px;z-index:9999;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:340px;display:none';document.body.appendChild(t);}return t;}
+function showSaveOk(msg){const t=_ensureToast();t.style.background='#0F7B0F';t.style.color='#fff';t.textContent='✓ '+msg;t.style.display='';clearTimeout(t._h);t._h=setTimeout(()=>{t.style.display='none';},2200);}
+function showSaveError(what,err){const t=_ensureToast();t.style.background='#E03E3E';t.style.color='#fff';t.textContent='⚠ Error al guardar '+what+': '+err+'. Verifica que tu rol sea admin en Supabase.';t.style.display='';clearTimeout(t._h);t._h=setTimeout(()=>{t.style.display='none';},6000);}
 
 async function sendOTP(){
   const email=$('authEmail').value.trim().toLowerCase();
@@ -938,7 +951,7 @@ function loadAdminCatalog(){try{adminCatalog=JSON.parse(localStorage.getItem('ul
 function saveAdminCatalog(){
   try{localStorage.setItem('ultralam_admin_catalog',JSON.stringify(adminCatalog));}catch(e){}
   sb.from('simulator_settings').upsert({key:'simulator_catalog',value:adminCatalog,updated_at:new Date().toISOString()})
-    .then(({error})=>{if(error)console.warn('[cat] save failed:',error.message);});
+    .then(({error})=>{if(error){console.warn('[cat] save failed:',error.message);showSaveError('catálogo',error.message);}else showSaveOk('Catálogo sincronizado');});
 }
 async function syncCatalogFromServer(){
   try{
@@ -1119,7 +1132,7 @@ async function syncVehiclesFromServer(){
 function saveVehicles(){
   try{localStorage.setItem('ultralam_vehicles',JSON.stringify(PR));}catch(e){}
   sb.from('simulator_settings').upsert({key:'simulator_vehicles',value:PR,updated_at:new Date().toISOString()})
-    .then(({error})=>{if(error)console.warn('[veh] save failed:',error.message);});
+    .then(({error})=>{if(error){console.warn('[veh] save failed:',error.message);showSaveError('vehículos',error.message);}else showSaveOk('Vehículos sincronizados');});
 }
 loadVehicles();
 function renderPR(){$('pgrid').innerHTML=PR.map(p=>`<div class="preset ${p.k===lastPK?'active':''}" onclick="selPR('${p.k}')"><div class="p-name">${p.n}</div><div class="p-dims">${p.l}&times;${p.w}&times;${p.h}</div><div class="p-cap">Max ${p.p.toLocaleString()} kg</div></div>`).join('')+`<div class="preset ${lastPK==='custom'?'active':''}" onclick="selPR('custom')"><div class="p-name">Personalizado</div><div class="p-dims">Tus medidas</div><div class="p-cap">&mdash;</div></div>`;}
@@ -1327,13 +1340,21 @@ function expCSV(){
 }
 
 async function captureView(theta,phi,dist){const c=gc();cA={t:theta,p:phi};cD=dist||Math.max(c.l,c.w,c.h)*1.6;cTgt.set(c.l/2,c.h/3,c.w/2);uCam();await new Promise(r=>setTimeout(r,150));return ren.domElement.toDataURL('image/png');}
+async function captureViewWhite(theta,phi,dist){
+  const d=document.documentElement,prevTheme=d.dataset.theme;
+  d.dataset.theme='light';updateSceneBg();
+  await new Promise(r=>setTimeout(r,80));
+  const img=await captureView(theta,phi,dist);
+  d.dataset.theme=prevTheme||'dark';updateSceneBg();
+  return img;
+}
 
 async function expPDF(){
   const{jsPDF}=window.jspdf;const doc=new jsPDF('landscape','mm','a4');
   const c=gc(),ic=getInternal(c),user=currentUser?currentUser.name:'',kgT=placements.reduce((s,p)=>s+(p.pesoUd||0),0);
   const vC=(ic.l*ic.w*ic.h)/1e6,vU=placements.reduce((s,p)=>s+(p.l*p.w*p.h),0)/1e6;
   const wanted=products.reduce((s,p)=>s+p.cantidad,0);
-  const iso=await captureView(Math.PI/5,Math.PI/5.5);const front=await captureView(0,Math.PI/2-.05,Math.max(c.l,c.w,c.h)*1.4);const side=await captureView(Math.PI/2,Math.PI/2-.05,Math.max(c.l,c.w,c.h)*1.4);const top=await captureView(Math.PI/4,0.05,Math.max(c.l,c.w,c.h)*1.8);
+  const iso=await captureViewWhite(Math.PI/5,Math.PI/5.5);const front=await captureViewWhite(0,Math.PI/2-.05,Math.max(c.l,c.w,c.h)*1.4);const side=await captureViewWhite(Math.PI/2,Math.PI/2-.05,Math.max(c.l,c.w,c.h)*1.4);const top=await captureViewWhite(Math.PI/4,0.05,Math.max(c.l,c.w,c.h)*1.8);
   doc.setFillColor(255,255,255);doc.rect(0,0,297,210,'F');
   doc.setTextColor(82,156,202);doc.setFontSize(16);doc.setFont('helvetica','bold');doc.text((SYS_CONFIG.name||'ULTRALAM').split('—')[0].trim().toUpperCase(),10,12);
   doc.setTextColor(40,40,40);doc.setFontSize(11);doc.text('Reporte de Carga 3D',55,12);
