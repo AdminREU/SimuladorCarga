@@ -771,26 +771,30 @@ function backToEmail(){
 }
 
 const SUPER_ADMIN='sistemas@ultralam.com.mx';
-let _loginInProgress=false;
+let _loginDone=false;
 async function onUserLogin(user){
-  if(_loginInProgress)return;
-  _loginInProgress=true;
+  if(_loginDone)return;
+  _loginDone=true;
+  const emailLower=(user.email||'').toLowerCase();
+  const isSuper=emailLower===SUPER_ADMIN;
+  let role='user',nombre=(user.email||'').split('@')[0];
+  // Consultar perfil con timeout — si falla, seguimos con valores por defecto
   try{
-    const emailLower=(user.email||'').toLowerCase();
-    const isSuper=emailLower===SUPER_ADMIN;
-    let{data:profile}=await sb.from('profiles').select('*').eq('id',user.id).maybeSingle();
-    if(isSuper&&(!profile||profile.role!=='admin')){
-      await sb.from('profiles').upsert({id:user.id,email:user.email,role:'admin'});
-      profile={...(profile||{}),role:'admin'};
-    }
-    const role=profile?.role||'user';
-    const nombre=profile?.nombre||(user.email||'').split('@')[0];
-    currentUser={id:user.id,email:user.email,isAdmin:role==='admin'||isSuper,name:nombre};
-    try{const n=localStorage.getItem('ultralam_user_name_'+user.email);if(n)currentUser.name=n;}catch(e){}
-    appendLog({type:'login',email:user.email,ts:new Date().toISOString()});
-    $('authScreen').style.display='none';
-    if(currentUser.isAdmin){showAdminPanel();}else{showMainApp();}
-  }finally{_loginInProgress=false;}
+    const profilePromise=sb.from('profiles').select('*').eq('id',user.id).maybeSingle();
+    const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),3500));
+    const{data:profile}=await Promise.race([profilePromise,timeout]).catch(e=>({data:null}));
+    if(profile){role=profile.role||'user';if(profile.nombre)nombre=profile.nombre;}
+  }catch(e){console.warn('[auth] profile fetch failed:',e.message);}
+  // Auto-promover sistemas@ultralam si no es admin (no bloquea login si falla)
+  if(isSuper&&role!=='admin'){
+    sb.from('profiles').upsert({id:user.id,email:user.email,role:'admin'}).then(()=>{},()=>{});
+    role='admin';
+  }
+  currentUser={id:user.id,email:user.email,isAdmin:role==='admin'||isSuper,name:nombre};
+  try{const n=localStorage.getItem('ultralam_user_name_'+user.email);if(n)currentUser.name=n;}catch(e){}
+  appendLog({type:'login',email:user.email,ts:new Date().toISOString()});
+  $('authScreen').style.display='none';
+  if(currentUser.isAdmin){showAdminPanel();}else{showMainApp();}
 }
 
 async function signOut(){
