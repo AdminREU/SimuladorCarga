@@ -218,6 +218,24 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 .hist-item:hover{border-color:var(--ac)}
 
 /* ===== PRINT ===== */
+/* ===== MOBILE / RESPONSIVE ===== */
+@media (max-width:900px){
+  .app{grid-template-columns:1fr;grid-template-rows:48px auto 60vh auto}
+  .sL,.sR{border:none;border-bottom:1px solid var(--bd);max-height:none}
+  .sR{border-top:1px solid var(--bd)}
+  .vp{min-height:55vh}
+  .hdr{flex-wrap:wrap;height:auto;padding:6px 10px;gap:6px}
+  .hdr-metrics{order:3;flex-basis:100%;font-size:10px;justify-content:space-around}
+  .hdr-right{margin-left:auto}
+  .auth-card{width:90%;max-width:380px;padding:24px}
+  #adminPanel .admin-body{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  #adminPanel .admin-nav{flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--bd);padding:8px;gap:6px}
+  #adminPanel .admin-nav-item{white-space:nowrap;flex-shrink:0;font-size:11px}
+  #adminPanel .admin-content{padding:14px}
+  #adminPanel .admin-table{font-size:10px}
+  #adminPanel .admin-toolbar{flex-direction:column;align-items:stretch}
+  #adminPanel .admin-toolbar .btn{width:100%;justify-content:center}
+}
 @media print{
   body{overflow:visible!important;height:auto!important;background:#fff!important;color:#000!important}
   .app{display:block!important;height:auto!important}.sL,.sR,.hdr{display:none!important}
@@ -387,6 +405,25 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
               </div>
             </div>
           </div>
+          <div class="config-row">
+            <label>Margen lateral (cm) — espacio a cada lado</label>
+            <input type="number" id="cfgMarginLado" min="0" step="1" value="15">
+          </div>
+          <div class="config-row">
+            <label>Margen superior/alto (cm) — espacio al techo</label>
+            <input type="number" id="cfgMarginAlto" min="0" step="1" value="30">
+          </div>
+          <div class="config-row">
+            <label>Margen puerta (cm) — espacio cerca de las puertas</label>
+            <input type="number" id="cfgMarginPuerta" min="0" step="1" value="30">
+          </div>
+          <div class="config-row">
+            <label>Dirección de carga</label>
+            <select id="cfgLoadDir" style="background:var(--sf);border:1px solid var(--bd);border-radius:7px;color:var(--tx);font-size:13px;padding:9px 12px">
+              <option value="back">Apilar al fondo (lejos de puertas)</option>
+              <option value="front">Apilar cerca de las puertas</option>
+            </select>
+          </div>
           <button class="btn btn-primary" onclick="saveSystemConfig()" style="max-width:200px">Guardar configuraci&#243;n</button>
           <div id="configSavedMsg" style="font-size:11px;color:var(--g);display:none">&#10003; Guardado correctamente</div>
         </div>
@@ -429,6 +466,7 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
       <div class="uc-avatar" id="appAvatar">U</div>
       <span id="appUserLabel">Usuario</span>
     </div>
+    <button class="btn btn-ghost" id="adminBtnInApp" style="font-size:9px;padding:3px 8px;display:none" onclick="showAdminPanel()">&#128272; Admin</button>
     <button class="btn btn-ghost" style="font-size:9px;padding:3px 8px" onclick="signOut()">&#10148; Salir</button>
   </div>
 </div>
@@ -599,7 +637,11 @@ const $=id=>{const e=document.getElementById(id);if(!e)console.warn('Missing #'+
 // ===== SYSTEM CONFIG =====
 let SYS_CONFIG={
   name:'Ultralam — Carga 3D',
-  logo:''
+  logo:'',
+  marginLado:15,
+  marginAlto:30,
+  marginPuerta:30,
+  loadFromBack:true
 };
 
 function loadSysConfig(){
@@ -718,12 +760,14 @@ function clearLog(){if(confirm('¿Limpiar todo el registro de acceso?')){localSt
 // ===== ADMIN PANEL =====
 function showAdminPanel(){
   $('adminPanel').style.display='flex';
+  $('mainApp').style.display='none';
   // fill admin config fields from current state
   $('cfgSysName').value=SYS_CONFIG.name||'';
   $('cfgLogoUrl').value=SYS_CONFIG.logo||'';
-  $('cfgAdminEmail').value=SYS_CONFIG.adminEmail||'';
-  $('cfgAdminUrl').value=SYS_CONFIG.supabaseUrl||'';
-  $('cfgAdminKey').value=SYS_CONFIG.supabaseKey||'';
+  $('cfgMarginLado').value=SYS_CONFIG.marginLado??15;
+  $('cfgMarginAlto').value=SYS_CONFIG.marginAlto??30;
+  $('cfgMarginPuerta').value=SYS_CONFIG.marginPuerta??30;
+  $('cfgLoadDir').value=SYS_CONFIG.loadFromBack===false?'front':'back';
   previewLogo();
   const ae=$('adminUserEmail');if(ae)ae.textContent=currentUser.email;
   const av=$('adminAvatar');if(av)av.textContent=(currentUser.name||currentUser.email).slice(0,1).toUpperCase();
@@ -914,15 +958,23 @@ function loadLogoFile(e){
 function saveSystemConfig(){
   SYS_CONFIG.name=$('cfgSysName').value.trim()||'Ultralam — Carga 3D';
   SYS_CONFIG.logo=$('cfgLogoUrl').value.trim();
+  SYS_CONFIG.marginLado=parseFloat($('cfgMarginLado').value)||0;
+  SYS_CONFIG.marginAlto=parseFloat($('cfgMarginAlto').value)||0;
+  SYS_CONFIG.marginPuerta=parseFloat($('cfgMarginPuerta').value)||0;
+  SYS_CONFIG.loadFromBack=$('cfgLoadDir').value==='back';
   saveSysConfig();
   applyBranding();
+  try{fullRebuild();}catch(e){}
   const m=$('configSavedMsg');m.style.display='';setTimeout(()=>{m.style.display='none';},2500);
 }
 
 // ===== MAIN APP =====
 function showMainApp(){
   loadAdminCatalog();loadAdminUsers();loadVehicles();
+  $('adminPanel').style.display='none';
   $('mainApp').style.display='grid';
+  // Mostrar botón admin solo a administradores
+  const ab=$('adminBtnInApp');if(ab)ab.style.display=currentUser&&currentUser.isAdmin?'':'none';
   // Set user UI
   const chip=$('appUserLabel'),av=$('appAvatar');
   if(chip)chip.textContent=currentUser.name;
@@ -984,8 +1036,7 @@ const COLORS=['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#06B6
 let selColor=COLORS[0],products=[],placements=[],overflow=[],idC=0,wfMode=false,mode='auto',selIdx=-1,lastPK='trailer',prodTipo='lamina';
 let undoStack=[];
 
-const MARGINS={lado:15,alto:30,puerta:30};
-function getInternal(c){return{l:c.l-MARGINS.puerta,w:c.w-2*MARGINS.lado,h:c.h-MARGINS.alto,offX:0,offZ:MARGINS.lado,offY:0};}
+function getInternal(c){const ml=+SYS_CONFIG.marginLado||0,ma=+SYS_CONFIG.marginAlto||0,mp=+SYS_CONFIG.marginPuerta||0;return{l:c.l-mp,w:c.w-2*ml,h:c.h-ma,offX:0,offZ:ml,offY:0};}
 
 function toggleTheme(){const d=document.documentElement;d.dataset.theme=d.dataset.theme==='dark'?'light':'dark';try{localStorage.setItem('ultralam_theme',d.dataset.theme);}catch(e){}updateSceneBg();}
 function updateSceneBg(){if(!scene)return;const s=getComputedStyle(document.documentElement);const bg=s.getPropertyValue('--vp-bg').trim();scene.background=new THREE.Color(bg);drawCont();drawBoxes();}
@@ -1122,6 +1173,7 @@ function r2(n){return Math.round(n*100)/100;}
 // ===== PACKING =====
 function packLaminas(items,occ,ic,maxH,maxWt,curWt,zMin,zMax){
   const zLo=zMin!==undefined?zMin:ic.offZ,zHi=zMax!==undefined?zMax:r2(ic.offZ+ic.w),zRange=r2(zHi-zLo);
+  const fromBack=SYS_CONFIG.loadFromBack!==false;
   for(const it of items){
     if(it._placed)continue;if(curWt+(it.pesoUd||0)>maxWt)continue;
     let placed=false;
@@ -1130,10 +1182,17 @@ function packLaminas(items,occ,ic,maxH,maxWt,curWt,zMin,zMax){
       if(placed)break;if(r.l>ic.l+.01||r.w>zRange+.01||r.h>maxH)continue;
       const zPositions=[];const zCenter=r2(zLo+(zRange-r.w)/2);zPositions.push(zCenter);
       for(let d=1;d<20;d++){let added=false;const zL=r2(zCenter-d*r.w),zR=r2(zCenter+d*r.w);if(zL>=zLo){zPositions.push(zL);added=true;}if(r2(zR+r.w)<=zHi){zPositions.push(zR);added=true;}if(!added)break;}
-      for(let x=ic.offX;r2(x+r.l)<=r2(ic.offX+ic.l)&&!placed;x=r2(x+r.l)){
+      const xStart=fromBack?r2(ic.offX+ic.l-r.l):ic.offX;
+      const xStep=fromBack?-r.l:r.l;
+      const xCond=fromBack?(x=>x>=ic.offX-0.01):(x=>r2(x+r.l)<=r2(ic.offX+ic.l));
+      for(let x=xStart;xCond(x)&&!placed;x=r2(x+xStep)){
         for(const z of zPositions){if(placed)break;for(let y=0;r2(y+r.h)<=maxH&&!placed;y=r2(y+r.h)){if(!collides(occ,x,y,z,r.l,r.w,r.h)){placements.push({x,y,z,l:r.l,w:r.w,h:r.h,color:it.color,nombre:it.nombre,pesoUd:it.pesoUd,tipo:'lamina',prodId:it.id});occ.push({x,y,z,l:r.l,w:r.w,h:r.h});it._placed=true;placed=true;curWt+=(it.pesoUd||0);}}}
       }
-      if(!placed){const sy=Math.max(.1,r.h),sx=Math.max(1,r.l/3),sz=Math.max(1,r.w/3);for(let x=ic.offX;r2(x+r.l)<=r2(ic.offX+ic.l)&&!placed;x+=sx){for(let z=zLo;r2(z+r.w)<=zHi&&!placed;z+=sz){for(let y=0;r2(y+r.h)<=maxH&&!placed;y=r2(y+sy)){if(!collides(occ,x,y,z,r.l,r.w,r.h)){placements.push({x,y,z,l:r.l,w:r.w,h:r.h,color:it.color,nombre:it.nombre,pesoUd:it.pesoUd,tipo:'lamina',prodId:it.id});occ.push({x,y,z,l:r.l,w:r.w,h:r.h});it._placed=true;placed=true;curWt+=(it.pesoUd||0);}}}}}
+      if(!placed){const sy=Math.max(.1,r.h),sx=Math.max(1,r.l/3),sz=Math.max(1,r.w/3);
+        const xS2=fromBack?r2(ic.offX+ic.l-r.l):ic.offX;
+        const xC2=fromBack?(x=>x>=ic.offX-0.01):(x=>r2(x+r.l)<=r2(ic.offX+ic.l));
+        const xD2=fromBack?-sx:sx;
+        for(let x=xS2;xC2(x)&&!placed;x=r2(x+xD2)){for(let z=zLo;r2(z+r.w)<=zHi&&!placed;z+=sz){for(let y=0;r2(y+r.h)<=maxH&&!placed;y=r2(y+sy)){if(!collides(occ,x,y,z,r.l,r.w,r.h)){placements.push({x,y,z,l:r.l,w:r.w,h:r.h,color:it.color,nombre:it.nombre,pesoUd:it.pesoUd,tipo:'lamina',prodId:it.id});occ.push({x,y,z,l:r.l,w:r.w,h:r.h,prodId:it.id});it._placed=true;placed=true;curWt+=(it.pesoUd||0);}}}}}
     }
   }
   return curWt;
@@ -1149,8 +1208,8 @@ function packCajas(items,occ,ic,maxH,maxWt,curWt){
     const seen=new Set();eps=eps.filter(e=>{const k=e.x+','+e.y+','+e.z;if(seen.has(k))return false;seen.add(k);return true;});
     const dims=[it.largo,it.ancho,it.alto];const rotSeen=new Set();const rots=[];
     for(let i=0;i<3;i++)for(let j=0;j<3;j++){if(i===j)continue;const k=3-i-j;const key=dims[i]+','+dims[j]+','+dims[k];if(!rotSeen.has(key)){rotSeen.add(key);rots.push({l:dims[i],w:dims[j],h:dims[k]});}}
-    let bestP=null,bestS=Infinity;
-    for(const ep of eps)for(const r of rots){if(r2(ep.x+r.l)>xMax||r2(ep.y+r.h)>maxH||r2(ep.z+r.w)>zMax)continue;if(collides(occ,ep.x,ep.y,ep.z,r.l,r.w,r.h))continue;const distZ=Math.abs((ep.z+r.w/2)-centerZ);const sc=ep.y*10000+ep.x*10+distZ;if(sc<bestS){bestS=sc;bestP={x:ep.x,y:ep.y,z:ep.z,l:r.l,w:r.w,h:r.h};}}
+    let bestP=null,bestS=Infinity;const fromBack=SYS_CONFIG.loadFromBack!==false;
+    for(const ep of eps)for(const r of rots){if(r2(ep.x+r.l)>xMax||r2(ep.y+r.h)>maxH||r2(ep.z+r.w)>zMax)continue;if(collides(occ,ep.x,ep.y,ep.z,r.l,r.w,r.h))continue;const distZ=Math.abs((ep.z+r.w/2)-centerZ);const xPref=fromBack?(xMax-(ep.x+r.l)):ep.x;const sc=ep.y*10000+xPref*10+distZ;if(sc<bestS){bestS=sc;bestP={x:ep.x,y:ep.y,z:ep.z,l:r.l,w:r.w,h:r.h};}}
     if(bestP){placements.push({...bestP,color:it.color,nombre:it.nombre,pesoUd:it.pesoUd,tipo:'caja',prodId:it.id});occ.push({x:bestP.x,y:bestP.y,z:bestP.z,l:bestP.l,w:bestP.w,h:bestP.h});it._placed=true;curWt+=(it.pesoUd||0);}
   }
   return curWt;
@@ -1175,7 +1234,7 @@ function metrics(){
   doAlerts(noFit,kgT,pct);updateWeightDist();
 }
 function updateWeightDist(){const c=gc();if(!placements.length){$('wdF').textContent='0 kg';$('wdC').textContent='0 kg';$('wdB').textContent='0 kg';$('wDist').innerHTML='<div style="width:33%;background:var(--g)"></div><div style="width:34%;background:var(--g)"></div><div style="width:33%;background:var(--g)"></div>';return;}const third=c.l/3;let wF=0,wC=0,wB=0;placements.forEach(p=>{const cx=p.x+p.l/2;if(cx<third)wF+=p.pesoUd||0;else if(cx<2*third)wC+=p.pesoUd||0;else wB+=p.pesoUd||0;});const total=wF+wC+wB||1;const pF=wF/total*100,pC=wC/total*100,pB=wB/total*100;const colorFor=pct=>pct>50?'var(--r)':pct>40?'var(--w)':'var(--g)';$('wDist').innerHTML=`<div style="width:${pF}%;background:${colorFor(pF)}"></div><div style="width:${pC}%;background:${colorFor(pC)}"></div><div style="width:${pB}%;background:${colorFor(pB)}"></div>`;$('wdF').textContent=wF.toFixed(0)+' kg';$('wdC').textContent=wC.toFixed(0)+' kg';$('wdB').textContent=wB.toFixed(0)+' kg';}
-function doAlerts(nf,kg,pct){const c=gc();if(kg===undefined)kg=placements.reduce((s,p)=>s+(p.pesoUd||0),0);if(nf===undefined)nf=products.reduce((s,p)=>s+p.cantidad,0)-placements.length;let h='';if(kg>c.pm)h+=`<div class="alert alert-error">&#9888; <b>Sobrepeso:</b> ${kg.toFixed(0)} / ${c.pm.toLocaleString()} kg. Exceso: ${(kg-c.pm).toFixed(0)} kg</div>`;if(nf>0)h+=`<div class="alert alert-error">&#128721; <b>${nf}</b> pieza${nf>1?'s':''} no cupieron.</div>`;const third=c.l/3;let wF=0,wC=0,wB=0;placements.forEach(p=>{const cx=p.x+p.l/2;if(cx<third)wF+=p.pesoUd||0;else if(cx<2*third)wC+=p.pesoUd||0;else wB+=p.pesoUd||0;});const total=wF+wC+wB||1;if(Math.max(wF,wC,wB)/total>0.55&&placements.length>2)h+=`<div class="alert alert-warn">&#9878; Peso desbalanceado: >${Math.round(Math.max(wF,wC,wB)/total*100)}% en una zona.</div>`;if(!products.length)h+=`<div class="alert alert-info">Agrega productos para comenzar.</div>`;else if(nf===0&&kg<=c.pm)h+=`<div class="alert alert-ok">&#10003; Carga viable</div>`;$('alP').innerHTML=h||'<div class="alert alert-ok">&#10003; OK</div>';}
+function doAlerts(nf,kg,pct){const c=gc();if(kg===undefined)kg=placements.reduce((s,p)=>s+(p.pesoUd||0),0);if(nf===undefined)nf=products.reduce((s,p)=>s+p.cantidad,0)-placements.length;let h='';if(kg>c.pm)h+=`<div class="alert alert-error">&#9888; <b>Sobrepeso:</b> ${kg.toFixed(0)} / ${c.pm.toLocaleString()} kg. Exceso: ${(kg-c.pm).toFixed(0)} kg</div>`;if(nf>0)h+=`<div class="alert alert-error">&#128721; <b>${nf}</b> pieza${nf>1?'s':''} no cupieron.</div>`;if(!products.length)h+=`<div class="alert alert-info">Agrega productos para comenzar.</div>`;else if(nf===0&&kg<=c.pm)h+=`<div class="alert alert-ok">&#10003; Carga viable</div>`;$('alP').innerHTML=h||'<div class="alert alert-ok">&#10003; OK</div>';}
 
 function onLayerChange(v){$('layerVal').textContent=Math.round(v)+'cm';$('layerCtrl').style.display='';drawBoxes();}
 
@@ -1198,11 +1257,13 @@ function addProd(){
   packAllProducts();drawBoxes();metrics();renderPL();
 }
 function remProd(id){products=products.filter(p=>p.id!==id);packAllProducts();drawBoxes();metrics();selIdx=-1;$('selP').style.display='none';renderPL();}
+function incQty(id){const p=products.find(p=>p.id===id);if(!p)return;p.cantidad++;packAllProducts();drawBoxes();metrics();renderPL();}
+function decQty(id){const p=products.find(p=>p.id===id);if(!p)return;if(p.cantidad<=1){remProd(id);return;}p.cantidad--;packAllProducts();drawBoxes();metrics();renderPL();}
 function clearAll(){products=[];placements=[];overflow=[];selIdx=-1;$('selP').style.display='none';renderPL();drawBoxes();metrics();}
 function renderPL(){
   $('pCt').textContent=products.length;
   if(!products.length){$('pList').innerHTML='<p style="font-size:10px;color:var(--tx3);text-align:center;padding:12px">Sin productos</p>';return;}
-  $('pList').innerHTML=products.map(p=>{const kT=p.pesoUd*p.cantidad;return`<div class="prod-item"><div class="prod-color" style="background:${p.color}"></div><div class="prod-info"><div class="prod-name">${p.nombre} <span style="color:var(--tx3);font-size:8px">[${p.tipo==='lamina'?'Lam':'Caja'}]</span></div><div class="prod-dims">${p.largo}&times;${p.ancho}&times;${p.alto}cm &times;${p.cantidad}</div><div class="prod-dims" style="color:var(--w)">${p.pesoUd}kg/ud = <b>${kT.toFixed(2)}kg</b></div></div><button class="btn-danger" onclick="event.stopPropagation();remProd(${p.id})">&#10005;</button></div>`;}).join('');
+  $('pList').innerHTML=products.map(p=>{const kT=p.pesoUd*p.cantidad;return`<div class="prod-item"><div class="prod-color" style="background:${p.color}"></div><div class="prod-info"><div class="prod-name">${p.nombre} <span style="color:var(--tx3);font-size:8px">[${p.tipo==='lamina'?'Lam':'Caja'}]</span></div><div class="prod-dims">${p.largo}&times;${p.ancho}&times;${p.alto}cm</div><div class="prod-dims" style="color:var(--w)">${p.pesoUd}kg/ud = <b>${kT.toFixed(2)}kg</b></div></div><div style="display:flex;align-items:center;gap:2px"><button class="btn btn-ghost" style="padding:2px 7px;font-size:11px;font-weight:700" onclick="event.stopPropagation();decQty(${p.id})" title="Restar">&#8722;</button><span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--ac);min-width:22px;text-align:center;font-size:11px">${p.cantidad}</span><button class="btn btn-ghost" style="padding:2px 7px;font-size:11px;font-weight:700" onclick="event.stopPropagation();incQty(${p.id})" title="Sumar">&#43;</button><button class="btn-danger" style="margin-left:4px" onclick="event.stopPropagation();remProd(${p.id})">&#10005;</button></div></div>`;}).join('');
 }
 
 function renderCP(){$('cpk').innerHTML=COLORS.map(c=>`<div class="color-dot ${c===selColor?'active':''}" style="background:${c}" onclick="pickC('${c}')"></div>`).join('');}
@@ -1228,23 +1289,23 @@ async function expPDF(){
   const vC=(ic.l*ic.w*ic.h)/1e6,vU=placements.reduce((s,p)=>s+(p.l*p.w*p.h),0)/1e6;
   const wanted=products.reduce((s,p)=>s+p.cantidad,0);
   const iso=await captureView(Math.PI/5,Math.PI/5.5);const front=await captureView(0,Math.PI/2-.05,Math.max(c.l,c.w,c.h)*1.4);const side=await captureView(Math.PI/2,Math.PI/2-.05,Math.max(c.l,c.w,c.h)*1.4);const top=await captureView(Math.PI/4,0.05,Math.max(c.l,c.w,c.h)*1.8);
-  doc.setFillColor(25,25,25);doc.rect(0,0,297,210,'F');
+  doc.setFillColor(255,255,255);doc.rect(0,0,297,210,'F');
   doc.setTextColor(82,156,202);doc.setFontSize(16);doc.setFont('helvetica','bold');doc.text((SYS_CONFIG.name||'ULTRALAM').split('—')[0].trim().toUpperCase(),10,12);
-  doc.setTextColor(232,232,227);doc.setFontSize(11);doc.text('Reporte de Carga 3D',55,12);
-  doc.setFontSize(8);doc.setTextColor(155,154,151);doc.text(`${new Date().toLocaleDateString('es-MX')} | ${user}`,10,18);
-  doc.setFillColor(32,32,32);doc.roundedRect(10,22,135,22,2,2,'F');
+  doc.setTextColor(40,40,40);doc.setFontSize(11);doc.text('Reporte de Carga 3D',55,12);
+  doc.setFontSize(8);doc.setTextColor(120,120,120);doc.text(`${new Date().toLocaleDateString('es-MX')} | ${user}`,10,18);
+  doc.setFillColor(245,245,245);doc.roundedRect(10,22,135,22,2,2,'F');
   doc.setTextColor(82,156,202);doc.setFontSize(9);doc.setFont('helvetica','bold');doc.text($('cTp').value,14,29);
-  doc.setTextColor(200,200,200);doc.setFontSize(8);doc.setFont('helvetica','normal');doc.text(`${c.l}x${c.w}x${c.h}cm (util: ${ic.l}x${ic.w}x${ic.h}cm) | Max ${c.pm.toLocaleString()}kg`,14,36);
-  doc.setFillColor(32,32,32);doc.roundedRect(150,22,137,22,2,2,'F');
+  doc.setTextColor(60,60,60);doc.setFontSize(8);doc.setFont('helvetica','normal');doc.text(`${c.l}x${c.w}x${c.h}cm (util: ${ic.l}x${ic.w}x${ic.h}cm) | Max ${c.pm.toLocaleString()}kg`,14,36);
+  doc.setFillColor(245,245,245);doc.roundedRect(150,22,137,22,2,2,'F');
   doc.setTextColor(77,171,154);doc.setFontSize(9);doc.setFont('helvetica','bold');doc.text(`Vol: ${vU.toFixed(2)}/${vC.toFixed(2)} m\u00b3`,154,29);
-  doc.setTextColor(200,200,200);doc.setFontSize(8);doc.setFont('helvetica','normal');doc.text(`${placements.length}/${wanted} pzs | ${kgT.toFixed(0)}/${c.pm.toLocaleString()}kg`,154,36);
+  doc.setTextColor(60,60,60);doc.setFontSize(8);doc.setFont('helvetica','normal');doc.text(`${placements.length}/${wanted} pzs | ${kgT.toFixed(0)}/${c.pm.toLocaleString()}kg`,154,36);
   try{doc.addImage(iso,'PNG',10,48,175,110);}catch(e){}
-  let y=52;const xT=190;doc.setTextColor(155,154,151);doc.setFontSize(7);doc.setFont('helvetica','bold');
+  let y=52;const xT=190;doc.setTextColor(120,120,120);doc.setFontSize(7);doc.setFont('helvetica','bold');
   ['PRODUCTO','TIPO','MEDIDAS','CANT','KG/UD','KG TOT'].forEach((h,i)=>doc.text(h,xT+[0,28,42,70,80,93][i],y));y+=5;
-  doc.setFont('helvetica','normal');doc.setTextColor(232,232,227);
-  products.forEach(p=>{if(y>200){doc.addPage();doc.setFillColor(25,25,25);doc.rect(0,0,297,210,'F');y=15;}doc.text(p.nombre.substring(0,14),xT,y);doc.text(p.tipo==='lamina'?'Lam':'Caja',xT+28,y);doc.text(`${p.largo}x${p.ancho}x${p.alto}`,xT+42,y);doc.text(''+p.cantidad,xT+70,y);doc.text(p.pesoUd.toFixed(1),xT+80,y);doc.text((p.pesoUd*p.cantidad).toFixed(1),xT+93,y);y+=5;});
-  doc.addPage();doc.setFillColor(25,25,25);doc.rect(0,0,297,210,'F');doc.setTextColor(82,156,202);doc.setFontSize(12);doc.setFont('helvetica','bold');doc.text('Vistas M\u00faltiples',10,12);
-  [{img:front,label:'FRONTAL',x:10,y:18,w:135,h:85},{img:side,label:'LATERAL',x:152,y:18,w:135,h:85},{img:top,label:'SUPERIOR',x:10,y:110,w:135,h:85},{img:iso,label:'PERSPECTIVA',x:152,y:110,w:135,h:85}].forEach(v=>{try{doc.addImage(v.img,'PNG',v.x+2,v.y+2,v.w-4,v.h-4);}catch(e){}doc.setTextColor(155,154,151);doc.setFontSize(7);doc.text(v.label,v.x+3,v.y+v.h+5);});
+  doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
+  products.forEach(p=>{if(y>200){doc.addPage();doc.setFillColor(255,255,255);doc.rect(0,0,297,210,'F');y=15;}doc.text(p.nombre.substring(0,14),xT,y);doc.text(p.tipo==='lamina'?'Lam':'Caja',xT+28,y);doc.text(`${p.largo}x${p.ancho}x${p.alto}`,xT+42,y);doc.text(''+p.cantidad,xT+70,y);doc.text(p.pesoUd.toFixed(1),xT+80,y);doc.text((p.pesoUd*p.cantidad).toFixed(1),xT+93,y);y+=5;});
+  doc.addPage();doc.setFillColor(255,255,255);doc.rect(0,0,297,210,'F');doc.setTextColor(82,156,202);doc.setFontSize(12);doc.setFont('helvetica','bold');doc.text('Vistas M\u00faltiples',10,12);
+  [{img:front,label:'FRONTAL',x:10,y:18,w:135,h:85},{img:side,label:'LATERAL',x:152,y:18,w:135,h:85},{img:top,label:'SUPERIOR',x:10,y:110,w:135,h:85},{img:iso,label:'PERSPECTIVA',x:152,y:110,w:135,h:85}].forEach(v=>{try{doc.addImage(v.img,'PNG',v.x+2,v.y+2,v.w-4,v.h-4);}catch(e){}doc.setTextColor(120,120,120);doc.setFontSize(7);doc.text(v.label,v.x+3,v.y+v.h+5);});
   const fname=`Carga_${(currentUser?currentUser.name.replace(/\s/g,'_')+'_':'')}${new Date().toISOString().slice(0,10)}.pdf`;
   doc.save(fname);rstCam();
 }
