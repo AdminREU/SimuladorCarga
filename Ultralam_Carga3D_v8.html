@@ -260,7 +260,7 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
       <div class="auth-subtitle" id="authStep2Desc">Ingresa el código de 6 dígitos enviado a tu correo</div>
       <div class="auth-field" style="margin-top:8px">
         <label>Código de verificación</label>
-        <input type="text" id="authOTP" class="auth-otp-input" maxlength="6" placeholder="000000" oninput="this.value=this.value.replace(/\D/g,'')" onkeydown="if(event.key==='Enter')verifyOTP()">
+        <input type="text" id="authOTP" class="auth-otp-input" maxlength="10" placeholder="código" oninput="this.value=this.value.replace(/\D/g,'')" onkeydown="if(event.key==='Enter')verifyOTP()">
       </div>
       <div class="auth-msg" id="authMsg2"></div>
       <button class="btn btn-primary btn-full" id="verifyOtpBtn" onclick="verifyOTP()">Verificar e ingresar</button>
@@ -663,7 +663,7 @@ async function sendOTP(){
 async function verifyOTP(){
   const email=$('authEmail').value.trim().toLowerCase();
   const token=$('authOTP').value.trim();
-  if(token.length<6){showAuthMsg('authMsg2','Ingresa los 6 dígitos.','err');return;}
+  if(token.length<6){showAuthMsg('authMsg2','Ingresa el código completo.','err');return;}
   $('verifyOtpBtn').disabled=true;
   showAuthMsg('authMsg2','Verificando...','info');
   // Intentar como usuario existente, luego como nuevo registro
