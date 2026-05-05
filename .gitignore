@@ -1,0 +1,6 @@
+MANUAL_LOCAL.md
+*.local.md
+.env
+.env.*
+secrets.*
+credentials.*
